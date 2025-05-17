@@ -15,18 +15,18 @@ else:
 openai.api_key = os.environ.get("OPENAI_API_KEY")
 
 # 2. CSV 파일 불러오기
-file_path = "reports_with_summary_20250509_235933.csv"
+file_path = "school_info_refined_with_summary_20250516_023818.csv"
 df = pd.read_csv(file_path)
 
 # 3. 사용할 컬럼만 추출하고 결측값 처리
-text_columns = ['summary_location', 'summary_weather', 'summary_academic', 'summary_safety']
-df[text_columns] = df[text_columns].fillna('')
+summary_cols = ['summary_location', 'summary_weather', 'summary_academic', 'summary_safety']
+df[summary_cols] = df[summary_cols].fillna('')
 
 def truncate_text(text, max_chars=1000):
     return text[:max_chars]
 
 # 4. 공통 요약 생성 함수
-def generate_hsahtag(row):
+def generate_hashtag(row):
     summary_location = truncate_text(row['summary_location'])
     summary_weather = truncate_text(row['summary_weather'])
     summary_academic = truncate_text(row['summary_academic'])
@@ -75,6 +75,7 @@ def generate_hsahtag(row):
         # 해시태그 패턴만 추출 (예: "#내용1 #내용2 #내용3")
         match = re.search(r'#\S+(?:\s+#\S+){2}', content)
         if match:
+            print(match.group(0).strip())
             return match.group(0).strip()
         else:
             return f"[FORMAT ERROR] {content.strip()}"  # 실패한 경우 원문도 확인용으로 남김
@@ -85,15 +86,19 @@ def generate_hsahtag(row):
 # 5. 전체 데이터 요약 생성
 hashtag_list = []
 for i, row in df.iterrows():
-    print(f"Processing row {i+1}/{len(df)}...")
-    hashtag = generate_hsahtag(row)
+    # summary 컬럼 중 하나라도 비어있지 않은 경우에만 수행
+    if any(pd.notnull(row[col]) and str(row[col]).strip() != "" for col in summary_cols):
+        print(f"Processing row {i+1}/{len(df)}...")
+        hashtag = generate_hashtag(row)
+        time.sleep(1.2)
+    else:
+        hashtag = ""
     hashtag_list.append(hashtag)
-    time.sleep(1.2)  # Rate limit 방지용
 
 # 6. 결과 저장
 df['hashtag'] = hashtag_list
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-output_path = f"reports_with_hashtag_{timestamp}.csv"
+output_path = f"school_info_refined_with_summary_hashtag_{timestamp}.csv"
 df.to_csv(output_path, index=False, encoding="utf-8-sig")
 
 print(f"\n요약 완료! 결과가 '{output_path}'로 저장되었습니다.")
